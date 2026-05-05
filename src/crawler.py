@@ -4,10 +4,13 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
 BASE_URL = "https://quotes.toscrape.com"
-POLITENESS_WINDOW = 6 # seconds
+POLITENESS_WINDOW = 6  # seconds
+
 
 class Crawler:
-    def __init__(self, base_url: str = BASE_URL, politeness_window: float = POLITENESS_WINDOW):
+    def __init__(
+        self, base_url: str = BASE_URL, politeness_window: float = POLITENESS_WINDOW
+    ):
         self.base_url = base_url.rstrip("/")
         self.base_netloc = urlparse(self.base_url).netloc
         self.politeness_window = float(politeness_window)
@@ -18,7 +21,7 @@ class Crawler:
         self.pages: dict[str, str] = {}
 
         self._last_request_ts: float | None = None
-    
+
     def fetch(self, url):
         """
         Fetch a URL and return BeautifulSoup (or None on failure).
@@ -44,7 +47,7 @@ class Crawler:
             return None
 
         return BeautifulSoup(resp.text, "html.parser")
-        
+
     def extract_links(self, soup, current_url: str | None = None):
         """
         Extract in-scope links from a page.
@@ -119,6 +122,9 @@ class Crawler:
         path = parsed.path or "/"
         # Drop query/fragment to avoid duplicate URLs
         normalized = f"{parsed.scheme}://{self.base_netloc}{path}"
-        if normalized.endswith("/") and normalized != f"{parsed.scheme}://{self.base_netloc}/":
+        if (
+            normalized.endswith("/")
+            and normalized != f"{parsed.scheme}://{self.base_netloc}/"
+        ):
             normalized = normalized.rstrip("/")
         return normalized
