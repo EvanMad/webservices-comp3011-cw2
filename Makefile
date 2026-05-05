@@ -6,3 +6,6 @@ lint:
 
 format:
 	ruff format
+
+coverage:
+	uv run -m pytest --cov=src
