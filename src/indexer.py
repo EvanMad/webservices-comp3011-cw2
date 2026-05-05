@@ -71,7 +71,6 @@ class Indexer:
         """
         self.clear()
         for url, html in pages_by_url.items():
-            print(f"Adding page: {url}")
             self.add_page(url, html)
         return self.index
 
