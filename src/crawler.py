@@ -1,0 +1,124 @@
+import requests
+import time
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse
+
+BASE_URL = "https://quotes.toscrape.com"
+POLITENESS_WINDOW = 6 # seconds
+
+class Crawler:
+    def __init__(self, base_url: str = BASE_URL, politeness_window: float = POLITENESS_WINDOW):
+        self.base_url = base_url.rstrip("/")
+        self.base_netloc = urlparse(self.base_url).netloc
+        self.politeness_window = float(politeness_window)
+
+        self.visited: set[str] = set()
+        self.queue: list[str] = []
+        # Stores raw HTML by URL; indexer can parse/tokenize as needed.
+        self.pages: dict[str, str] = {}
+
+        self._last_request_ts: float | None = None
+    
+    def fetch(self, url):
+        """
+        Fetch a URL and return BeautifulSoup (or None on failure).
+
+        Enforces a politeness window between successive requests.
+        """
+        wait_for = 0.0
+        now = time.time()
+        if self._last_request_ts is not None:
+            wait_for = self.politeness_window - (now - self._last_request_ts)
+        if wait_for > 0:
+            time.sleep(wait_for)
+
+        headers = {
+            "User-Agent": "COMP3011-CourseworkCrawler/1.0 (+https://quotes.toscrape.com/)"
+        }
+
+        try:
+            resp = requests.get(url, headers=headers, timeout=15)
+            self._last_request_ts = time.time()
+            resp.raise_for_status()
+        except requests.RequestException:
+            return None
+
+        return BeautifulSoup(resp.text, "html.parser")
+        
+    def extract_links(self, soup, current_url: str | None = None):
+        """
+        Extract in-scope links from a page.
+
+        Returns a list of normalized absolute URLs within the target site.
+        """
+        if soup is None:
+            return []
+
+        if current_url is None:
+            current_url = self.base_url
+
+        links: list[str] = []
+        for a in soup.find_all("a", href=True):
+            href = a.get("href")
+            if not href:
+                continue
+
+            abs_url = urljoin(current_url, href)
+            norm = self._normalize_url(abs_url)
+            if norm is not None:
+                links.append(norm)
+
+        # Keep deterministic order while removing duplicates
+        return list(dict.fromkeys(links))
+
+    def crawl(self, url):
+        """
+        Crawl the target website starting from url.
+
+        Populates self.pages (url -> html) and returns it.
+        """
+        start = self._normalize_url(url) or self.base_url
+
+        self.visited.clear()
+        self.queue = [start]
+        self.pages.clear()
+
+        while self.queue:
+            current = self.queue.pop(0)
+            if current in self.visited:
+                continue
+            self.visited.add(current)
+
+            soup = self.fetch(current)
+            if soup is None:
+                continue
+
+            self.pages[current] = str(soup)
+
+            for link in self.extract_links(soup, current_url=current):
+                if link not in self.visited:
+                    self.queue.append(link)
+
+        return self.pages
+
+    def _normalize_url(self, url: str) -> str | None:
+        """
+        Normalize URLs and restrict crawling to the target site.
+        """
+        try:
+            parsed = urlparse(url)
+        except Exception:
+            return None
+
+        if parsed.scheme not in ("http", "https"):
+            return None
+
+        if parsed.netloc and parsed.netloc != self.base_netloc:
+            return None
+
+        path = parsed.path or "/"
+        # Drop query/fragment to avoid duplicate URLs
+        normalized = f"{parsed.scheme}://{self.base_netloc}{path}"
+        if normalized.endswith("/") and normalized != f"{parsed.scheme}://{self.base_netloc}/":
+            normalized = normalized.rstrip("/")
+        return normalized
