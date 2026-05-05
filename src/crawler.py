@@ -87,7 +87,6 @@ class Crawler:
         self.pages.clear()
 
         while self.queue:
-            
             # print number of items in queue
             print(f"Queue: {len(self.queue)}")
 
