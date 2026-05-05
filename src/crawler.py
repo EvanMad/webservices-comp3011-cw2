@@ -1,3 +1,4 @@
+import logging
 import requests
 import time
 from bs4 import BeautifulSoup
@@ -5,6 +6,8 @@ from urllib.parse import urljoin, urlparse
 
 BASE_URL = "https://quotes.toscrape.com"
 POLITENESS_WINDOW = 0  # seconds
+
+logger = logging.getLogger(__name__)
 
 
 class Crawler:
@@ -22,7 +25,7 @@ class Crawler:
 
         self._last_request_ts: float | None = None
 
-    def fetch(self, url):
+    def fetch(self, url: str) -> BeautifulSoup | None:
         """
         Fetch a URL and return BeautifulSoup (or None on failure).
 
@@ -33,6 +36,7 @@ class Crawler:
         if self._last_request_ts is not None:
             wait_for = self.politeness_window - (now - self._last_request_ts)
         if wait_for > 0:
+            logger.debug("Politeness sleep %.2fs before %s", wait_for, url)
             time.sleep(wait_for)
 
         headers = {
@@ -40,15 +44,17 @@ class Crawler:
         }
 
         try:
+            logger.debug("GET %s", url)
             resp = requests.get(url, headers=headers, timeout=15)
             self._last_request_ts = time.time()
             resp.raise_for_status()
-        except requests.RequestException:
+        except requests.RequestException as e:
+            logger.warning("Request failed for %s: %s", url, e)
             return None
 
         return BeautifulSoup(resp.text, "html.parser")
 
-    def extract_links(self, soup, current_url: str | None = None):
+    def extract_links(self, soup: BeautifulSoup | None, current_url: str | None = None):
         """
         Extract in-scope links from a page.
 
@@ -72,9 +78,11 @@ class Crawler:
                 links.append(norm)
 
         # Keep deterministic order while removing duplicates
-        return list(dict.fromkeys(links))
+        deduped = list(dict.fromkeys(links))
+        logger.debug("Extracted %d in-scope links from %s", len(deduped), current_url)
+        return deduped
 
-    def crawl(self, url):
+    def crawl(self, url: str) -> dict[str, str]:
         """
         Crawl the target website starting from url.
 
@@ -86,15 +94,19 @@ class Crawler:
         self.queue = [start]
         self.pages.clear()
 
+        logger.info("Starting crawl at %s", start)
         while self.queue:
-            # print number of items in queue
-            print(f"Queue: {len(self.queue)}")
-
             current = self.queue.pop(0)
             if current in self.visited:
                 continue
             self.visited.add(current)
 
+            logger.debug(
+                "Crawling %s (queue=%d visited=%d)",
+                current,
+                len(self.queue),
+                len(self.visited),
+            )
             soup = self.fetch(current)
             if soup is None:
                 continue
@@ -105,6 +117,7 @@ class Crawler:
                 if link not in self.visited:
                     self.queue.append(link)
 
+        logger.info("Crawl complete: %d pages", len(self.pages))
         return self.pages
 
     def _normalize_url(self, url: str) -> str | None:

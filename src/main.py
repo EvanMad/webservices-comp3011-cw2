@@ -10,12 +10,14 @@ try:
     # Works when executed as a module: `python -m src.main`
     from src.crawler import BASE_URL, POLITENESS_WINDOW, Crawler
     from src.indexer import Indexer, Posting
+    from src.logging_utils import configure_logging
 except ModuleNotFoundError:
     # Works when executed as a script: `python src/main.py`
     _SRC_DIR = Path(__file__).resolve().parent
     sys.path.insert(0, str(_SRC_DIR))
     from crawler import BASE_URL, POLITENESS_WINDOW, Crawler  # type: ignore[no-redef]
     from indexer import Indexer, Posting  # type: ignore[no-redef]
+    from logging_utils import configure_logging  # type: ignore[no-redef]
 
 
 DEFAULT_INDEX_PATH = Path("data/index.json")
@@ -105,6 +107,20 @@ def _cmd_find(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="search-tool")
     parser.add_argument(
+        "-v",
+        "--verbose",
+        action="count",
+        default=0,
+        help="Increase logging verbosity (repeatable).",
+    )
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="count",
+        default=0,
+        help="Decrease logging verbosity (repeatable).",
+    )
+    parser.add_argument(
         "--index-path",
         default=str(DEFAULT_INDEX_PATH),
         help="Path to the index file (JSON).",
@@ -141,6 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    configure_logging(verbose=args.verbose, quiet=args.quiet)
     return int(args.func(args))
 
 
