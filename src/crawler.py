@@ -4,7 +4,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
 BASE_URL = "https://quotes.toscrape.com"
-POLITENESS_WINDOW = 6  # seconds
+POLITENESS_WINDOW = 0  # seconds
 
 
 class Crawler:
@@ -87,6 +87,10 @@ class Crawler:
         self.pages.clear()
 
         while self.queue:
+            
+            # print number of items in queue
+            print(f"Queue: {len(self.queue)}")
+
             current = self.queue.pop(0)
             if current in self.visited:
                 continue
