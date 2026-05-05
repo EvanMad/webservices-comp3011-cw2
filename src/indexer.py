@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import logging
 import re
 from typing import Any, Iterable
 
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 
 
 _WORD_RE = re.compile(r"[a-z0-9]+(?:'[a-z0-9]+)?", re.IGNORECASE)
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -54,6 +56,7 @@ class Indexer:
 
     def add_page(self, url: str, html: str) -> None:
         tokens = list(self.tokenize_html(html))
+        logger.debug("Indexing %s (%d tokens)", url, len(tokens))
         for pos, term in enumerate(tokens):
             postings = self.index.setdefault(term, {})
             posting = postings.get(url)
@@ -70,8 +73,10 @@ class Indexer:
         Returns the internal index for convenience.
         """
         self.clear()
+        logger.info("Building index over %d pages", len(pages_by_url))
         for url, html in pages_by_url.items():
             self.add_page(url, html)
+        logger.info("Index built: %d unique terms", len(self.index))
         return self.index
 
     def get(self, term: str) -> dict[str, Posting]:
