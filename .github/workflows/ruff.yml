@@ -1,8 +1,6 @@
 name: Ruff (lint + format)
 
 on:
-  push:
-    branches: ["**"]
   pull_request:
 
 permissions:
