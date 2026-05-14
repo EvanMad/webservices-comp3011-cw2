@@ -18,7 +18,7 @@ Query strings are tokenised with the same rules as indexing. `find` resolves to 
 **CLI shell (`src/main.py`)**  
 Startup uses `argparse` for logging verbosity, index path, crawl start URL, and politeness window. The program then enters a read-eval loop on standard input, splitting each line with `shlex` so quoted arguments behave predictably. Commands are `build` (crawl, index, write JSON), `load` (read JSON into memory), `print <term>` (JSON postings for that term), and `find <term> [...]` (AND search with scores). `exit` or `quit` ends the session; `build` and `load` replace the in-memory indexer used by `print` and `find`.
 
-# Installation/setup instructions
+# Installation
 
 Requires [uv](https://docs.astral.sh/uv/) and Python 3.13 or newer (see `pyproject.toml`).
 
@@ -36,7 +36,7 @@ uv run search-engine-tool
 
 Optional flags (before the shell starts): `--index-path`, `--start-url`, `--politeness-window`, `-v` / `-q` for logging.
 
-# Usage examples for all four commands
+# Usage
 
 Start the shell (see Installation), then type commands at the `>` prompt.
 
@@ -67,7 +67,7 @@ Start the shell (see Installation), then type commands at the `>` prompt.
 
 Leave the shell with `exit` or `quit`.
 
-# Testing instructions
+# Testing
 
 To run the testing suite:
 
@@ -81,7 +81,23 @@ or for optional test coverage:
 make coverage
 ```
 
-# Any dependencies and how to install them
+Testing is ran automatically pre-merge in Github Actions.
+
+# Linting & Formatting
+
+This project can be linted and formated with [Ruff](https://docs.astral.sh/ruff/) with the following commands:
+
+```bash
+make lint
+```
+
+```bash
+make format
+```
+
+These are also automatically ran pre-merge as part of the CI/CD pipeline implemented in Github Actions.
+
+# Dependencies
 
 Declared in `pyproject.toml`; `requirements.txt` contains a snapshot of the full tree if you wish to install without uv. This was generated with `uv pip compile` and `pyproject.toml` is the source-of-truth for dependencies for this project.
 
