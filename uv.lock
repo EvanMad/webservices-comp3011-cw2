@@ -279,7 +279,7 @@ wheels = [
 [[package]]
 name = "webservices-comp3011-cw2"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
     { name = "pytest" },
