@@ -23,9 +23,7 @@ logger = logging.getLogger(__name__)
 def _default_session() -> requests.Session:
     s = requests.Session()
     s.headers.update(
-        {
-            "User-Agent": "COMP3011-CourseworkCrawler/1.0 (+https://quotes.toscrape.com/)"
-        }
+        {"User-Agent": "COMP3011-CourseworkCrawler/1.0 (+https://quotes.toscrape.com/)"}
     )
     return s
 
