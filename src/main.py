@@ -4,20 +4,21 @@ import argparse
 import json
 from pathlib import Path
 import sys
-from typing import Iterable
 
 try:
     # Works when executed as a module: `python -m src.main`
     from src.crawler import BASE_URL, POLITENESS_WINDOW, Crawler
-    from src.indexer import Indexer, Posting
+    from src.indexer import Indexer
     from src.logging_utils import configure_logging
+    from src.search import find_pages
 except ModuleNotFoundError:
     # Works when executed as a script: `python src/main.py`
     _SRC_DIR = Path(__file__).resolve().parent
     sys.path.insert(0, str(_SRC_DIR))
     from crawler import BASE_URL, POLITENESS_WINDOW, Crawler  # type: ignore[no-redef]
-    from indexer import Indexer, Posting  # type: ignore[no-redef]
+    from indexer import Indexer  # type: ignore[no-redef]
     from logging_utils import configure_logging  # type: ignore[no-redef]
+    from search import find_pages  # type: ignore[no-redef]
 
 
 DEFAULT_INDEX_PATH = Path("data/index.json")
@@ -46,29 +47,6 @@ def build_index(
 
 def load_index(*, index_path: str | Path = DEFAULT_INDEX_PATH) -> Indexer:
     return Indexer.load(str(index_path))
-
-
-def find_pages(indexer: Indexer, query_terms: Iterable[str]) -> list[str]:
-    """
-    Return URLs that contain *all* query terms, sorted by a simple score.
-
-    Score is the sum of term frequencies across all query terms.
-    """
-    terms = [Indexer.normalize_term(t) for t in query_terms if t.strip()]
-    if not terms:
-        return []
-
-    postings_by_term: list[dict[str, Posting]] = [indexer.get(t) for t in terms]
-    urls = set(postings_by_term[0].keys())
-    for p in postings_by_term[1:]:
-        urls &= set(p.keys())
-
-    def score(url: str) -> int:
-        return sum(
-            p.get(url, Posting(count=0, positions=[])).count for p in postings_by_term
-        )
-
-    return sorted(urls, key=lambda u: (-score(u), u))
 
 
 def _cmd_build(args: argparse.Namespace) -> int:
