@@ -189,6 +189,7 @@ def test_run_shell_print_wrong_arg_count(tmp_path, monkeypatch, capsys):
     )
     assert run_shell(index_path=idx_path) == 0
     err = capsys.readouterr().err
+    assert err.count("Warning:") == 2
     assert "Usage: print <word>" in err
 
 
@@ -206,6 +207,37 @@ def test_run_shell_print_ok(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out.strip()
     parsed = json.loads(out)
     assert "https://example.com/" in parsed
+
+
+def test_run_shell_print_strips_punctuation(tmp_path, monkeypatch, capsys):
+    idx = Indexer()
+    idx.add_page("https://example.com/", "<html><body>hello</body></html>")
+    idx_path = tmp_path / "idx.json"
+    idx.save(str(idx_path))
+
+    monkeypatch.setattr(
+        "builtins.input",
+        MagicMock(side_effect=["load", "print hello,", "quit"]),
+    )
+    assert run_shell(index_path=idx_path) == 0
+    out = capsys.readouterr().out.strip()
+    assert "https://example.com/" in json.loads(out)
+
+
+def test_run_shell_print_no_searchable_term(tmp_path, monkeypatch, capsys):
+    idx = Indexer()
+    idx.add_page("https://example.com/", "<html><body>hello</body></html>")
+    idx_path = tmp_path / "idx.json"
+    idx.save(str(idx_path))
+
+    monkeypatch.setattr(
+        "builtins.input",
+        MagicMock(side_effect=["load", "print ...", "quit"]),
+    )
+    assert run_shell(index_path=idx_path) == 0
+    err = capsys.readouterr().err
+    assert "Warning" in err
+    assert "no alphabetic term" in err.lower()
 
 
 def test_run_shell_find_requires_index(tmp_path, monkeypatch, capsys):
@@ -231,6 +263,48 @@ def test_run_shell_find_ok(tmp_path, monkeypatch, capsys):
     assert run_shell(index_path=idx_path) == 0
     lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("http")]
     assert lines == ["https://a/"]
+
+
+def test_run_shell_find_quoted_phrase_one_argument(tmp_path, monkeypatch, capsys):
+    idx = Indexer()
+    idx.add_page("https://a/", "<html><body>one two</body></html>")
+    idx.add_page("https://b/", "<html><body>one three</body></html>")
+    idx_path = tmp_path / "idx.json"
+    idx.save(str(idx_path))
+
+    monkeypatch.setattr(
+        "builtins.input",
+        MagicMock(side_effect=["load", 'find "one two"', "quit"]),
+    )
+    assert run_shell(index_path=idx_path) == 0
+    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("http")]
+    assert lines == ["https://a/"]
+
+
+def test_run_shell_find_no_terms_warns(tmp_path, monkeypatch, capsys):
+    idx_path = tmp_path / "idx.json"
+    Indexer().save(str(idx_path))
+    monkeypatch.setattr(
+        "builtins.input",
+        MagicMock(side_effect=["load", "find", "quit"]),
+    )
+    assert run_shell(index_path=idx_path) == 0
+    err = capsys.readouterr().err
+    assert "Warning" in err
+    assert "find" in err.lower()
+
+
+def test_run_shell_find_only_non_searchable_warns(tmp_path, monkeypatch, capsys):
+    idx_path = tmp_path / "idx.json"
+    Indexer().save(str(idx_path))
+    monkeypatch.setattr(
+        "builtins.input",
+        MagicMock(side_effect=["load", "find ...", "quit"]),
+    )
+    assert run_shell(index_path=idx_path) == 0
+    err = capsys.readouterr().err
+    assert "Warning" in err
+    assert "searchable" in err.lower()
 
 
 def test_run_shell_build_delegates(monkeypatch, tmp_path):

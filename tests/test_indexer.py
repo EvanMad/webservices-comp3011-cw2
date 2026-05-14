@@ -33,10 +33,10 @@ def pages_by_url() -> dict[str, str]:
     }
 
 
-def test_tokenize_html_case_insensitive_and_strips_non_content(
+def test_tokenise_html_case_insensitive_and_strips_non_content(
     pages_by_url: dict[str, str],
 ):
-    tokens = list(Indexer.tokenize_html(pages_by_url["https://quotes.toscrape.com/"]))
+    tokens = list(Indexer.tokenise_html(pages_by_url["https://quotes.toscrape.com/"]))
 
     # Visible content words exist.
     assert "good" in tokens
@@ -113,8 +113,8 @@ def test_indexer_load_rejects_non_object_root(tmp_path: Path):
         Indexer.load(str(path))
 
 
-def test_tokenize_text_handles_apostrophe_words():
-    assert list(Indexer.tokenize_text("it's a test")) == ["it's", "a", "test"]
+def test_tokenise_text_handles_apostrophe_words():
+    assert list(Indexer.tokenise_text("it's a test")) == ["it's", "a", "test"]
 
 
 def test_save_and_load_roundtrip(tmp_path: Path, pages_by_url: dict[str, str]):

@@ -55,7 +55,7 @@ class Indexer:
         self.index.clear()
 
     def add_page(self, url: str, html: str) -> None:
-        tokens = list(self.tokenize_html(html))
+        tokens = list(self.tokenise_html(html))
         logger.debug("Indexing %s (%d tokens)", url, len(tokens))
         for pos, term in enumerate(tokens):
             postings = self.index.setdefault(term, {})
@@ -81,19 +81,19 @@ class Indexer:
 
     def get(self, term: str) -> dict[str, Posting]:
         """Return postings for a term (case-insensitive)."""
-        return self.index.get(self.normalize_term(term), {})
+        return self.index.get(self.normalise_term(term), {})
 
     @staticmethod
-    def normalize_term(term: str) -> str:
+    def normalise_term(term: str) -> str:
         return term.casefold()
 
     @classmethod
-    def tokenize_text(cls, text: str) -> Iterable[str]:
+    def tokenise_text(cls, text: str) -> Iterable[str]:
         for m in _WORD_RE.finditer(text):
             yield m.group(0).casefold()
 
     @classmethod
-    def tokenize_html(cls, html: str) -> Iterable[str]:
+    def tokenise_html(cls, html: str) -> Iterable[str]:
         soup = BeautifulSoup(html, "html.parser")
 
         # Remove non-visible / non-content text.
@@ -101,11 +101,11 @@ class Indexer:
             tag.decompose()
 
         text = soup.get_text(separator=" ", strip=True)
-        return cls.tokenize_text(text)
+        return cls.tokenise_text(text)
 
     def to_dict(self) -> dict[str, Any]:
         """
-        Convert to a JSON-serializable representation.
+        Convert to a JSON-serialisable representation.
         """
         return {
             "index": {

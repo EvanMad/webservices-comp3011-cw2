@@ -11,7 +11,7 @@ try:
     from src.crawler import BASE_URL, POLITENESS_WINDOW, Crawler
     from src.indexer import Indexer
     from src.logging_utils import configure_logging
-    from src.search import find_pages
+    from src.search import _query_tokens, find_pages
 except ModuleNotFoundError:
     # Works when executed as a script: `python src/main.py`
     _SRC_DIR = Path(__file__).resolve().parent
@@ -19,7 +19,7 @@ except ModuleNotFoundError:
     from crawler import BASE_URL, POLITENESS_WINDOW, Crawler  # type: ignore[no-redef]
     from indexer import Indexer  # type: ignore[no-redef]
     from logging_utils import configure_logging  # type: ignore[no-redef]
-    from search import find_pages  # type: ignore[no-redef]
+    from search import _query_tokens, find_pages  # type: ignore[no-redef]
 
 
 DEFAULT_INDEX_PATH = Path("data/index.json")
@@ -144,11 +144,26 @@ def run_shell(
                     "No index in memory. Run 'build' or 'load' first.", file=sys.stderr
                 )
                 continue
-            if len(args) != 1:
-                print("Usage: print <word>", file=sys.stderr)
+            if len(args) == 0:
+                print(
+                    "Warning: print requires a term. Usage: print <word>",
+                    file=sys.stderr,
+                )
                 continue
-            term = args[0]
-            postings = indexer.get(term)
+            if len(args) > 1:
+                print(
+                    "Warning: print takes exactly one term. Usage: print <word>",
+                    file=sys.stderr,
+                )
+                continue
+            words = list(Indexer.tokenise_text(args[0]))
+            if not words:
+                print(
+                    "Warning: no alphabetic term in argument. Usage: print <word>",
+                    file=sys.stderr,
+                )
+                continue
+            postings = indexer.get(words[0])
             print(
                 json.dumps(
                     {url: p.to_dict() for url, p in postings.items()},
@@ -162,6 +177,20 @@ def run_shell(
             if indexer is None:
                 print(
                     "No index in memory. Run 'build' or 'load' first.", file=sys.stderr
+                )
+                continue
+            if not args:
+                print(
+                    "Warning: find needs at least one search term. "
+                    "Usage: find <term> [<term> ...]",
+                    file=sys.stderr,
+                )
+                continue
+            if not _query_tokens(args):
+                print(
+                    "Warning: no searchable terms in query (only punctuation or "
+                    "whitespace). Usage: find <term> [<term> ...]",
+                    file=sys.stderr,
                 )
                 continue
             urls = find_pages(indexer, args)
