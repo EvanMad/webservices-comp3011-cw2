@@ -84,6 +84,39 @@ def test_get_is_case_insensitive(pages_by_url: dict[str, str]):
     assert indexer.get("GOOD") == indexer.get("good")
 
 
+def test_posting_from_dict_rejects_non_list_positions():
+    with pytest.raises(TypeError, match="posting.positions must be a list"):
+        Posting.from_dict({"count": 1, "positions": "nope"})
+
+
+def test_indexer_from_dict_requires_dict_index():
+    with pytest.raises(TypeError, match="index must be a dict"):
+        Indexer.from_dict({"index": []})
+
+
+def test_indexer_from_dict_skips_non_dict_posting_maps():
+    data = {
+        "index": {
+            "hello": "not-a-dict",
+            "world": {"https://x/": {"count": 1, "positions": [0]}},
+        }
+    }
+    idx = Indexer.from_dict(data)
+    assert idx.get("hello") == {}
+    assert idx.get("world")
+
+
+def test_indexer_load_rejects_non_object_root(tmp_path: Path):
+    path = tmp_path / "bad.json"
+    path.write_text("42", encoding="utf-8")
+    with pytest.raises(TypeError, match="index file root"):
+        Indexer.load(str(path))
+
+
+def test_tokenize_text_handles_apostrophe_words():
+    assert list(Indexer.tokenize_text("it's a test")) == ["it's", "a", "test"]
+
+
 def test_save_and_load_roundtrip(tmp_path: Path, pages_by_url: dict[str, str]):
     indexer = Indexer()
     indexer.build(pages_by_url)

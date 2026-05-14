@@ -154,6 +154,101 @@ def test_fetch_returns_none_on_request_exception(monkeypatch):
     assert crawler.fetch("https://quotes.toscrape.com/") is None
 
 
+def test_extract_links_none_soup_returns_empty():
+    crawler = Crawler(politeness_window=0)
+    assert crawler.extract_links(None) == []
+
+
+def test_extract_links_uses_base_url_when_current_url_missing():
+    crawler = Crawler(base_url="https://quotes.toscrape.com", politeness_window=0)
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        '<html><body><a href="/about">x</a></body></html>', "html.parser"
+    )
+    assert crawler.extract_links(soup, current_url=None) == [
+        "https://quotes.toscrape.com/about"
+    ]
+
+
+def test_extract_links_skips_empty_href():
+    crawler = Crawler(base_url="https://quotes.toscrape.com", politeness_window=0)
+    from bs4 import BeautifulSoup
+
+    soup = BeautifulSoup(
+        '<html><body><a href="">empty</a><a href="/tag/x">ok</a></body></html>',
+        "html.parser",
+    )
+    assert crawler.extract_links(soup, current_url="https://quotes.toscrape.com/") == [
+        "https://quotes.toscrape.com/tag/x"
+    ]
+
+
+def test_crawl_skips_already_visited_when_url_queued_twice(monkeypatch):
+    import src.crawler as crawler_module
+
+    # Two branches both link to /target before /target is visited, so /target
+    # appears twice in the FIFO queue; the second dequeue hits `visited`.
+    pages_by_url = {
+        "https://quotes.toscrape.com/": """
+            <html><body>
+              <a href="/left">left</a>
+              <a href="/right">right</a>
+            </body></html>
+        """,
+        "https://quotes.toscrape.com/left": """
+            <html><body>
+              <a href="/target">t1</a>
+            </body></html>
+        """,
+        "https://quotes.toscrape.com/right": """
+            <html><body>
+              <a href="/target">t2</a>
+            </body></html>
+        """,
+        "https://quotes.toscrape.com/target": """
+            <html><body><p>done</p></body></html>
+        """,
+    }
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeResponse(pages_by_url[url], status_code=200)
+
+    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
+
+    crawler = Crawler(politeness_window=0)
+    crawled = crawler.crawl("https://quotes.toscrape.com/")
+    assert set(crawled) == {
+        "https://quotes.toscrape.com/",
+        "https://quotes.toscrape.com/left",
+        "https://quotes.toscrape.com/right",
+        "https://quotes.toscrape.com/target",
+    }
+
+
+def test_normalize_url_returns_none_when_urlparse_raises(monkeypatch):
+    import src.crawler as crawler_module
+
+    crawler = Crawler(politeness_window=0)
+
+    def bad_urlparse(url):
+        raise ValueError("bad")
+
+    monkeypatch.setattr(crawler_module, "urlparse", bad_urlparse)
+    assert crawler._normalize_url("https://quotes.toscrape.com/") is None
+
+
+def test_fetch_returns_none_on_http_error(monkeypatch):
+    import src.crawler as crawler_module
+
+    def fake_get(url, headers=None, timeout=None):
+        return _FakeResponse("gone", status_code=404)
+
+    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
+    crawler = Crawler(politeness_window=0)
+    assert crawler.fetch("https://quotes.toscrape.com/missing") is None
+
+
 def test_crawl_skips_failed_pages_but_continues(monkeypatch):
     import src.crawler as crawler_module
 
