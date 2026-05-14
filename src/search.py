@@ -22,14 +22,32 @@ In code this is represented as:
 """
 
 
+def _query_tokens(fragments: Iterable[str]) -> list[str]:
+    """
+    Turn raw query fragments into index keys using the same rules as indexing.
+
+    Non-string fragments are skipped. Whitespace-only and punctuation-only
+    pieces yield no tokens. Duplicates are removed while preserving order so
+    boolean AND does not repeat work.
+    """
+    out: list[str] = []
+    for fragment in fragments:
+        if not isinstance(fragment, str):
+            continue
+        out.extend(Indexer.tokenise_text(fragment))
+    return list(dict.fromkeys(out))
+
+
 def find_pages(indexer: Indexer, query_terms: Iterable[str]) -> list[str]:
     """
     Return URLs that contain every query term (boolean AND).
 
-    Terms need not be adjacent; each normalized term must appear at least once
-    on the page. Results are returned in deterministic (sorted) order.
+    Each shell argument may contain several words, punctuation, or hyphenated
+    pieces; they are split with `Indexer.tokenise_text`, matching how pages
+    were indexed. Terms need not be adjacent on the page. Results are sorted
+    for a stable order.
     """
-    terms = [Indexer.normalize_term(t) for t in query_terms if t.strip()]
+    terms = _query_tokens(query_terms)
     if not terms:
         return []
 

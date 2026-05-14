@@ -20,7 +20,7 @@ class Crawler:
 
         self.visited: set[str] = set()
         self.queue: list[str] = []
-        # Stores raw HTML by URL; indexer can parse/tokenize as needed.
+        # Stores raw HTML by URL; indexer can parse/tokenise as needed.
         self.pages: dict[str, str] = {}
 
         self._last_request_ts: float | None = None
@@ -58,7 +58,7 @@ class Crawler:
         """
         Extract in-scope links from a page.
 
-        Returns a list of normalized absolute URLs within the target site.
+        Returns a list of normalised absolute URLs within the target site.
         """
         if soup is None:
             return []
@@ -73,7 +73,7 @@ class Crawler:
                 continue
 
             abs_url = urljoin(current_url, href)
-            norm = self._normalize_url(abs_url)
+            norm = self._normalise_url(abs_url)
             if norm is not None:
                 links.append(norm)
 
@@ -88,7 +88,7 @@ class Crawler:
 
         Populates self.pages (url -> html) and returns it.
         """
-        start = self._normalize_url(url) or self.base_url
+        start = self._normalise_url(url) or self.base_url
 
         self.visited.clear()
         self.queue = [start]
@@ -120,9 +120,9 @@ class Crawler:
         logger.info("Crawl complete: %d pages", len(self.pages))
         return self.pages
 
-    def _normalize_url(self, url: str) -> str | None:
+    def _normalise_url(self, url: str) -> str | None:
         """
-        Normalize URLs and restrict crawling to the target site.
+        Normalise URLs and restrict crawling to the target site.
         """
         try:
             parsed = urlparse(url)
@@ -137,10 +137,10 @@ class Crawler:
 
         path = parsed.path or "/"
         # Drop query/fragment to avoid duplicate URLs
-        normalized = f"{parsed.scheme}://{self.base_netloc}{path}"
+        normalised = f"{parsed.scheme}://{self.base_netloc}{path}"
         if (
-            normalized.endswith("/")
-            and normalized != f"{parsed.scheme}://{self.base_netloc}/"
+            normalised.endswith("/")
+            and normalised != f"{parsed.scheme}://{self.base_netloc}/"
         ):
-            normalized = normalized.rstrip("/")
-        return normalized
+            normalised = normalised.rstrip("/")
+        return normalised

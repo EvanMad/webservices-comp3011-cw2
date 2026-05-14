@@ -77,19 +77,19 @@ def test_crawler(monkeypatch):
     assert "Albert Einstein" in crawled["https://quotes.toscrape.com/page/2"]
 
 
-def test_normalize_url_restricts_to_base_site():
+def test_normalise_url_restricts_to_base_site():
     crawler = Crawler(base_url="https://quotes.toscrape.com", politeness_window=0)
 
     assert (
-        crawler._normalize_url("https://quotes.toscrape.com/tag/love/")
+        crawler._normalise_url("https://quotes.toscrape.com/tag/love/")
         == "https://quotes.toscrape.com/tag/love"
     )
-    assert crawler._normalize_url("https://example.com/") is None
-    assert crawler._normalize_url("mailto:test@example.com") is None
-    assert crawler._normalize_url("javascript:alert(1)") is None
+    assert crawler._normalise_url("https://example.com/") is None
+    assert crawler._normalise_url("mailto:test@example.com") is None
+    assert crawler._normalise_url("javascript:alert(1)") is None
 
 
-def test_extract_links_normalizes_and_dedupes_and_filters_out_of_scope():
+def test_extract_links_normalises_and_dedupes_and_filters_out_of_scope():
     crawler = Crawler(base_url="https://quotes.toscrape.com", politeness_window=0)
     html = """
         <html><body>
@@ -109,7 +109,7 @@ def test_extract_links_normalizes_and_dedupes_and_filters_out_of_scope():
     soup = BeautifulSoup(html, "html.parser")
     links = crawler.extract_links(soup, current_url="https://quotes.toscrape.com/")
 
-    # All the in-scope variants normalize to the same URL, and duplicates are removed.
+    # All the in-scope variants normalise to the same URL, and duplicates are removed.
     assert links == ["https://quotes.toscrape.com/about"]
 
 
@@ -226,7 +226,7 @@ def test_crawl_skips_already_visited_when_url_queued_twice(monkeypatch):
     }
 
 
-def test_normalize_url_returns_none_when_urlparse_raises(monkeypatch):
+def test_normalise_url_returns_none_when_urlparse_raises(monkeypatch):
     import src.crawler as crawler_module
 
     crawler = Crawler(politeness_window=0)
@@ -235,7 +235,7 @@ def test_normalize_url_returns_none_when_urlparse_raises(monkeypatch):
         raise ValueError("bad")
 
     monkeypatch.setattr(crawler_module, "urlparse", bad_urlparse)
-    assert crawler._normalize_url("https://quotes.toscrape.com/") is None
+    assert crawler._normalise_url("https://quotes.toscrape.com/") is None
 
 
 def test_fetch_returns_none_on_http_error(monkeypatch):

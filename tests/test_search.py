@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import pytest
 
 from src.indexer import Indexer
@@ -56,3 +58,31 @@ def test_find_pages_non_adjacent_terms_still_match(indexer: Indexer):
 
 def test_find_pages_boolean_and_excludes_partial_matches(indexer: Indexer):
     assert find_pages(indexer, ["friends", "nope"]) == []
+
+
+def test_find_pages_punctuation_on_term_still_matches(indexer: Indexer):
+    assert find_pages(indexer, ["friends,"]) == ["https://quotes.toscrape.com/"]
+    assert find_pages(indexer, ['"friends"']) == ["https://quotes.toscrape.com/"]
+
+
+def test_find_pages_one_fragment_with_multiple_words(indexer: Indexer):
+    assert find_pages(indexer, ["good friends"]) == ["https://quotes.toscrape.com/"]
+
+
+def test_find_pages_hyphen_splits_like_indexing(indexer: Indexer):
+    assert find_pages(indexer, ["good-friends"]) == ["https://quotes.toscrape.com/"]
+
+
+def test_find_pages_non_string_fragments_skipped(indexer: Indexer):
+    mixed: tuple[Any, ...] = ("good", None, "friends")
+    assert find_pages(indexer, mixed) == ["https://quotes.toscrape.com/"]
+
+
+def test_find_pages_duplicate_words_deduped(indexer: Indexer):
+    assert find_pages(indexer, ["good", "good", "friends"]) == [
+        "https://quotes.toscrape.com/"
+    ]
+
+
+def test_find_pages_only_punctuation_or_whitespace(indexer: Indexer):
+    assert find_pages(indexer, ["...", "   ", "---"]) == []
