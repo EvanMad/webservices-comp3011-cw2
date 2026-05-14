@@ -106,6 +106,18 @@ def test_indexer_from_dict_skips_non_dict_posting_maps():
     assert idx.get("world")
 
 
+def test_indexer_from_dict_without_doc_lengths_recomputes_lengths():
+    idx = Indexer.from_dict(
+        {
+            "index": {
+                "alpha": {"https://u/": {"count": 2, "positions": [0, 2]}},
+                "beta": {"https://u/": {"count": 1, "positions": [1]}},
+            }
+        }
+    )
+    assert idx.doc_lengths == {"https://u/": 3}
+
+
 def test_indexer_load_rejects_non_object_root(tmp_path: Path):
     path = tmp_path / "bad.json"
     path.write_text("42", encoding="utf-8")
@@ -127,6 +139,7 @@ def test_save_and_load_roundtrip(tmp_path: Path, pages_by_url: dict[str, str]):
     loaded = Indexer.load(str(path))
 
     # Verify a few representative postings survived the round-trip.
+    assert loaded.doc_lengths == indexer.doc_lengths
     assert (
         loaded.get("twain")["https://quotes.toscrape.com/"].to_dict()
         == indexer.get("twain")["https://quotes.toscrape.com/"].to_dict()

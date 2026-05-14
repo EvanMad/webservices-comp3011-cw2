@@ -261,8 +261,12 @@ def test_run_shell_find_ok(tmp_path, monkeypatch, capsys):
         MagicMock(side_effect=["load", "find one two", "quit"]),
     )
     assert run_shell(index_path=idx_path) == 0
-    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("http")]
-    assert lines == ["https://a/"]
+    urls = []
+    for ln in capsys.readouterr().out.splitlines():
+        parts = ln.split("\t", 1)
+        if len(parts) == 2 and parts[1].startswith("http"):
+            urls.append(parts[1])
+    assert urls == ["https://a/"]
 
 
 def test_run_shell_find_quoted_phrase_one_argument(tmp_path, monkeypatch, capsys):
@@ -277,8 +281,12 @@ def test_run_shell_find_quoted_phrase_one_argument(tmp_path, monkeypatch, capsys
         MagicMock(side_effect=["load", 'find "one two"', "quit"]),
     )
     assert run_shell(index_path=idx_path) == 0
-    lines = [ln for ln in capsys.readouterr().out.splitlines() if ln.startswith("http")]
-    assert lines == ["https://a/"]
+    urls = []
+    for ln in capsys.readouterr().out.splitlines():
+        parts = ln.split("\t", 1)
+        if len(parts) == 2 and parts[1].startswith("http"):
+            urls.append(parts[1])
+    assert urls == ["https://a/"]
 
 
 def test_run_shell_find_no_terms_warns(tmp_path, monkeypatch, capsys):
