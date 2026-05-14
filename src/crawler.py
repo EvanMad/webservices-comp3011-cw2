@@ -20,7 +20,7 @@ class Crawler:
 
         self.visited: set[str] = set()
         self.queue: list[str] = []
-        # Stores raw HTML by URL; indexer can parse/tokenise as needed.
+        # Stores HTML containing only in-page quote blocks (div.quote); nav/headings excluded.
         self.pages: dict[str, str] = {}
 
         self._last_request_ts: float | None = None
@@ -82,11 +82,22 @@ class Crawler:
         logger.debug("Extracted %d in-scope links from %s", len(deduped), current_url)
         return deduped
 
+    @staticmethod
+    def _serialise_quotes_html(soup: BeautifulSoup) -> str:
+        """
+        Keep only quotes.toscrape.com quote blocks (`div.quote`), not headings or nav chrome.
+        """
+        blocks = soup.select("div.quote")
+        if not blocks:
+            return "<html><body></body></html>"
+        inner = "".join(str(block) for block in blocks)
+        return f"<html><body>{inner}</body></html>"
+
     def crawl(self, url: str) -> dict[str, str]:
         """
         Crawl the target website starting from url.
 
-        Populates self.pages (url -> html) and returns it.
+        Populates self.pages (url -> HTML string of `div.quote` blocks only) and returns it.
         """
         start = self._normalise_url(url) or self.base_url
 
@@ -111,7 +122,7 @@ class Crawler:
             if soup is None:
                 continue
 
-            self.pages[current] = str(soup)
+            self.pages[current] = self._serialise_quotes_html(soup)
 
             for link in self.extract_links(soup, current_url=current):
                 if link not in self.visited:

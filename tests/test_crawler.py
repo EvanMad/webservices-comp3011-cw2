@@ -72,9 +72,13 @@ def test_crawler(monkeypatch):
     }
     assert all(not url.startswith("https://example.com/") for url in crawled.keys())
     assert all(not url.startswith("https://example.com/") for url in requested_urls)
-    # Ensure we actually stored "quote-like" HTML content from the pages.
+    # Stored HTML is quote blocks only: headings / about copy are not retained.
     assert "A witty saying proves nothing" in crawled["https://quotes.toscrape.com/"]
     assert "Albert Einstein" in crawled["https://quotes.toscrape.com/page/2"]
+    about_html = crawled["https://quotes.toscrape.com/about"]
+    assert "About" not in about_html
+    assert "This is a test about page" not in about_html
+    assert about_html == "<html><body></body></html>"
 
 
 def test_normalise_url_restricts_to_base_site():
