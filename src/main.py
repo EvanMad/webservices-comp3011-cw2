@@ -140,7 +140,9 @@ def run_shell(
 
         if cmd == "print":
             if indexer is None:
-                print("No index in memory. Run 'build' or 'load' first.", file=sys.stderr)
+                print(
+                    "No index in memory. Run 'build' or 'load' first.", file=sys.stderr
+                )
                 continue
             if len(args) != 1:
                 print("Usage: print <word>", file=sys.stderr)
@@ -158,7 +160,9 @@ def run_shell(
 
         if cmd == "find":
             if indexer is None:
-                print("No index in memory. Run 'build' or 'load' first.", file=sys.stderr)
+                print(
+                    "No index in memory. Run 'build' or 'load' first.", file=sys.stderr
+                )
                 continue
             urls = find_pages(indexer, args)
             for url in urls:
