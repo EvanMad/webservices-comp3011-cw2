@@ -76,11 +76,14 @@ def _doc_length(indexer: Indexer, url: str) -> int:
     if n is not None and n > 0:
         return n
     # Fallback if a URL appears only in a partial / legacy index.
-    return sum(
-        postings[url].count
-        for postings in indexer.index.values()
-        if url in postings
-    ) or 1
+    return (
+        sum(
+            postings[url].count
+            for postings in indexer.index.values()
+            if url in postings
+        )
+        or 1
+    )
 
 
 def _bm25_sum(
