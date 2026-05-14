@@ -11,7 +11,7 @@ try:
     from src.crawler import BASE_URL, POLITENESS_WINDOW, Crawler
     from src.indexer import Indexer
     from src.logging_utils import configure_logging
-    from src.search import _query_tokens, find_pages
+    from src.search import _query_tokens, find_pages_scored
 except ModuleNotFoundError:
     # Works when executed as a script: `python src/main.py`
     _SRC_DIR = Path(__file__).resolve().parent
@@ -19,7 +19,7 @@ except ModuleNotFoundError:
     from crawler import BASE_URL, POLITENESS_WINDOW, Crawler  # type: ignore[no-redef]
     from indexer import Indexer  # type: ignore[no-redef]
     from logging_utils import configure_logging  # type: ignore[no-redef]
-    from search import _query_tokens, find_pages  # type: ignore[no-redef]
+    from search import _query_tokens, find_pages_scored  # type: ignore[no-redef]
 
 
 DEFAULT_INDEX_PATH = Path("data/index.json")
@@ -193,9 +193,8 @@ def run_shell(
                     file=sys.stderr,
                 )
                 continue
-            urls = find_pages(indexer, args)
-            for url in urls:
-                print(url)
+            for url, score in find_pages_scored(indexer, args):
+                print(f"{score:.6f}\t{url}")
             continue
 
         print(f"Unknown command: {parts[0]!r}", file=sys.stderr)

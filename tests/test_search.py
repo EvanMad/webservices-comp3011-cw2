@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from src.indexer import Indexer
-from src.search import find_pages
+from src.search import find_pages, find_pages_scored
 
 
 @pytest.fixture()
@@ -86,3 +86,19 @@ def test_find_pages_duplicate_words_deduped(indexer: Indexer):
 
 def test_find_pages_only_punctuation_or_whitespace(indexer: Indexer):
     assert find_pages(indexer, ["...", "   ", "---"]) == []
+
+
+def test_find_pages_ranked_by_bm25_heavier_page_first():
+    """Both URLs match AND; the page with higher term counts should rank first."""
+    pages = {
+        "https://a.example/": "<html><body>alpha beta gamma</body></html>",
+        "https://b.example/": "<html><body>alpha alpha alpha beta beta</body></html>",
+    }
+    idx = Indexer()
+    idx.build(pages)
+    assert find_pages(idx, ["alpha", "beta"]) == [
+        "https://b.example/",
+        "https://a.example/",
+    ]
+    scores = [s for _, s in find_pages_scored(idx, ["alpha", "beta"])]
+    assert scores == sorted(scores, reverse=True)

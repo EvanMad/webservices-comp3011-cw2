@@ -46,16 +46,22 @@ class Indexer:
     The index structure is:
 
         term -> url -> Posting(count, positions)
+
+    Each URL also has a stored token count in ``doc_lengths`` for BM25 ranking.
     """
 
     def __init__(self) -> None:
         self.index: dict[str, dict[str, Posting]] = {}
+        # url -> number of tokens (same order as indexing); used for BM25 ranking.
+        self.doc_lengths: dict[str, int] = {}
 
     def clear(self) -> None:
         self.index.clear()
+        self.doc_lengths.clear()
 
     def add_page(self, url: str, html: str) -> None:
         tokens = list(self.tokenise_html(html))
+        self.doc_lengths[url] = len(tokens)
         logger.debug("Indexing %s (%d tokens)", url, len(tokens))
         for pos, term in enumerate(tokens):
             postings = self.index.setdefault(term, {})
@@ -103,15 +109,24 @@ class Indexer:
         text = soup.get_text(separator=" ", strip=True)
         return cls.tokenise_text(text)
 
+    def _recompute_doc_lengths_from_index(self) -> None:
+        """Rebuild doc_lengths from postings (token count per url = sum of term counts)."""
+        lengths: dict[str, int] = {}
+        for postings in self.index.values():
+            for url, posting in postings.items():
+                lengths[url] = lengths.get(url, 0) + posting.count
+        self.doc_lengths = lengths
+
     def to_dict(self) -> dict[str, Any]:
         """
         Convert to a JSON-serialisable representation.
         """
         return {
+            "doc_lengths": dict(sorted(self.doc_lengths.items())),
             "index": {
                 term: {url: posting.to_dict() for url, posting in postings.items()}
                 for term, postings in self.index.items()
-            }
+            },
         }
 
     @classmethod
@@ -127,6 +142,13 @@ class Indexer:
             inst.index[str(term)] = {
                 str(url): Posting.from_dict(p) for url, p in postings.items()
             }
+
+        raw_dl = data.get("doc_lengths")
+        if isinstance(raw_dl, dict) and raw_dl:
+            inst.doc_lengths = {str(u): int(n) for u, n in raw_dl.items()}
+        else:
+            inst._recompute_doc_lengths_from_index()
+
         return inst
 
     def save(self, path: str) -> None:
