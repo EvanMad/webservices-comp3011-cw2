@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-
-import pytest
 
 from src.crawler import BASE_URL, POLITENESS_WINDOW
 from src.indexer import Indexer
