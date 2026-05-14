@@ -52,3 +52,7 @@ def test_find_pages_two_terms_and_other_page(indexer: Indexer):
 def test_find_pages_non_adjacent_terms_still_match(indexer: Indexer):
     # Both words on the home page, not next to each other in the token stream.
     assert find_pages(indexer, ["friends", "books"]) == ["https://quotes.toscrape.com/"]
+
+
+def test_find_pages_boolean_and_excludes_partial_matches(indexer: Indexer):
+    assert find_pages(indexer, ["friends", "nope"]) == []
