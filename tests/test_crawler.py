@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import requests
 
-from src.crawler import Crawler
+from src.crawler import REQUEST_TIMEOUT, Crawler
 
 
 @dataclass
@@ -15,7 +15,18 @@ class _FakeResponse:
             raise requests.HTTPError(f"HTTP {self.status_code}")
 
 
-def test_crawler(monkeypatch):
+class _StubSession:
+    """Minimal session stand-in (tests avoid patching requests internals)."""
+
+    def __init__(self, get_impl):
+        self.headers = {}
+        self._get_impl = get_impl
+
+    def get(self, url, headers=None, timeout=None):
+        return self._get_impl(url, headers, timeout)
+
+
+def test_crawler():
     # Deterministic, in-memory "site"
     pages_by_url = {
         "https://quotes.toscrape.com/": """
@@ -50,18 +61,14 @@ def test_crawler(monkeypatch):
 
     def fake_get(url, headers=None, timeout=None):
         requested_urls.append(url)
-        assert timeout == 15
-        assert headers and "User-Agent" in headers
+        assert timeout == REQUEST_TIMEOUT
         if url not in pages_by_url:
             return _FakeResponse("not found", status_code=404)
         return _FakeResponse(pages_by_url[url], status_code=200)
 
-    # Patch where `requests` is imported/used (src.crawler -> module attribute `requests`)
-    import src.crawler as crawler_module
-
-    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
-
-    crawler = Crawler(politeness_window=0)
+    crawler = Crawler(
+        politeness_window=0, session=_StubSession(fake_get), max_retries=1
+    )
     crawled = crawler.crawl("https://quotes.toscrape.com")
 
     # Should include only in-scope pages (no network, no external domain).
@@ -102,7 +109,6 @@ def test_extract_links_normalises_and_dedupes_and_filters_out_of_scope():
           <a href="/about">about-duplicate</a>
         </body></html>
     """
-    soup = crawler.fetch = None  # make sure we don't accidentally hit network
     # Build soup without calling crawler.fetch.
     from bs4 import BeautifulSoup
 
@@ -113,9 +119,7 @@ def test_extract_links_normalises_and_dedupes_and_filters_out_of_scope():
     assert links == ["https://quotes.toscrape.com/about"]
 
 
-def test_fetch_enforces_politeness_window(monkeypatch):
-    import src.crawler as crawler_module
-
+def test_fetch_enforces_politeness_window():
     # Simulate time progression: first request at t=100, second attempt at t=103
     # with politeness_window=6 should sleep ~3 seconds.
     times = iter([100.0, 100.0, 103.0, 106.0])
@@ -131,27 +135,73 @@ def test_fetch_enforces_politeness_window(monkeypatch):
     def fake_get(url, headers=None, timeout=None):
         return _FakeResponse("<html></html>", status_code=200)
 
-    monkeypatch.setattr(crawler_module.time, "time", fake_time)
-    monkeypatch.setattr(crawler_module.time, "sleep", fake_sleep)
-    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
-
-    crawler = Crawler(politeness_window=6)
+    crawler = Crawler(
+        politeness_window=6,
+        session=_StubSession(fake_get),
+        max_retries=1,
+        sleep_fn=fake_sleep,
+        time_fn=fake_time,
+    )
     assert crawler.fetch("https://quotes.toscrape.com/") is not None
     assert crawler.fetch("https://quotes.toscrape.com/about") is not None
 
     assert slept == [3.0]
 
 
-def test_fetch_returns_none_on_request_exception(monkeypatch):
-    import src.crawler as crawler_module
-
+def test_fetch_returns_none_on_request_exception():
     def fake_get(url, headers=None, timeout=None):
         raise requests.Timeout("boom")
 
-    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
-
-    crawler = Crawler(politeness_window=0)
+    crawler = Crawler(
+        politeness_window=0, session=_StubSession(fake_get), max_retries=1
+    )
     assert crawler.fetch("https://quotes.toscrape.com/") is None
+
+
+def test_fetch_retries_transient_error_then_succeeds():
+    calls = {"n": 0}
+
+    def fake_get(url, headers=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise requests.ConnectionError("nope")
+        return _FakeResponse("<html><body>ok</body></html>", status_code=200)
+
+    slept: list[float] = []
+
+    crawler = Crawler(
+        politeness_window=0,
+        session=_StubSession(fake_get),
+        max_retries=3,
+        retry_backoff_base=0.5,
+        sleep_fn=lambda s: slept.append(s),
+    )
+    soup = crawler.fetch("https://quotes.toscrape.com/")
+    assert soup is not None
+    assert "ok" in str(soup)
+    assert calls["n"] == 2
+    assert slept == [0.5]
+
+
+def test_fetch_retries_transient_http_then_succeeds():
+    calls = {"n": 0}
+
+    def fake_get(url, headers=None, timeout=None):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return _FakeResponse("bad gateway", status_code=502)
+        return _FakeResponse("<html><body>ok</body></html>", status_code=200)
+
+    crawler = Crawler(
+        politeness_window=0,
+        session=_StubSession(fake_get),
+        max_retries=3,
+        retry_backoff_base=0.0,
+        sleep_fn=lambda s: None,
+    )
+    soup = crawler.fetch("https://quotes.toscrape.com/")
+    assert soup is not None
+    assert calls["n"] == 2
 
 
 def test_extract_links_none_soup_returns_empty():
@@ -184,9 +234,7 @@ def test_extract_links_skips_empty_href():
     ]
 
 
-def test_crawl_skips_already_visited_when_url_queued_twice(monkeypatch):
-    import src.crawler as crawler_module
-
+def test_crawl_skips_already_visited_when_url_queued_twice():
     # Two branches both link to /target before /target is visited, so /target
     # appears twice in the FIFO queue; the second dequeue hits `visited`.
     pages_by_url = {
@@ -214,9 +262,9 @@ def test_crawl_skips_already_visited_when_url_queued_twice(monkeypatch):
     def fake_get(url, headers=None, timeout=None):
         return _FakeResponse(pages_by_url[url], status_code=200)
 
-    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
-
-    crawler = Crawler(politeness_window=0)
+    crawler = Crawler(
+        politeness_window=0, session=_StubSession(fake_get), max_retries=1
+    )
     crawled = crawler.crawl("https://quotes.toscrape.com/")
     assert set(crawled) == {
         "https://quotes.toscrape.com/",
@@ -238,20 +286,17 @@ def test_normalise_url_returns_none_when_urlparse_raises(monkeypatch):
     assert crawler._normalise_url("https://quotes.toscrape.com/") is None
 
 
-def test_fetch_returns_none_on_http_error(monkeypatch):
-    import src.crawler as crawler_module
-
+def test_fetch_returns_none_on_http_error():
     def fake_get(url, headers=None, timeout=None):
         return _FakeResponse("gone", status_code=404)
 
-    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
-    crawler = Crawler(politeness_window=0)
+    crawler = Crawler(
+        politeness_window=0, session=_StubSession(fake_get), max_retries=1
+    )
     assert crawler.fetch("https://quotes.toscrape.com/missing") is None
 
 
-def test_crawl_skips_failed_pages_but_continues(monkeypatch):
-    import src.crawler as crawler_module
-
+def test_crawl_skips_failed_pages_but_continues():
     pages_by_url = {
         "https://quotes.toscrape.com/": """
             <html><body>
@@ -281,9 +326,9 @@ def test_crawl_skips_failed_pages_but_continues(monkeypatch):
             return _FakeResponse("not found", status_code=404)
         return _FakeResponse(pages_by_url[url], status_code=200)
 
-    monkeypatch.setattr(crawler_module.requests, "get", fake_get)
-
-    crawler = Crawler(politeness_window=0)
+    crawler = Crawler(
+        politeness_window=0, session=_StubSession(fake_get), max_retries=1
+    )
     crawled = crawler.crawl("https://quotes.toscrape.com/")
 
     assert set(crawled.keys()) == {
@@ -293,3 +338,13 @@ def test_crawl_skips_failed_pages_but_continues(monkeypatch):
     # Quote content should still be retained for successfully crawled pages.
     assert "thinking makes it so" in crawled["https://quotes.toscrape.com/"]
     assert "Allen Saunders" in crawled["https://quotes.toscrape.com/about"]
+
+
+def test_default_session_has_user_agent():
+    crawler = Crawler(politeness_window=0)
+    assert "User-Agent" in crawler._session.headers
+
+
+def test_max_retries_coerced_to_at_least_one():
+    c = Crawler(politeness_window=0, max_retries=0)
+    assert c.max_retries == 1
