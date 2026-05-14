@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 from pathlib import Path
 import sys
 
@@ -49,40 +50,7 @@ def load_index(*, index_path: str | Path = DEFAULT_INDEX_PATH) -> Indexer:
     return Indexer.load(str(index_path))
 
 
-def _cmd_build(args: argparse.Namespace) -> int:
-    build_index(
-        start_url=args.start_url,
-        index_path=args.index_path,
-        politeness_window=args.politeness_window,
-    )
-    return 0
-
-
-def _cmd_load(args: argparse.Namespace) -> int:
-    _ = load_index(index_path=args.index_path)
-    return 0
-
-
-def _cmd_print(args: argparse.Namespace) -> int:
-    indexer = load_index(index_path=args.index_path)
-    postings = indexer.get(args.term)
-    print(
-        json.dumps(
-            {url: p.to_dict() for url, p in postings.items()}, indent=2, sort_keys=True
-        )
-    )
-    return 0
-
-
-def _cmd_find(args: argparse.Namespace) -> int:
-    indexer = load_index(index_path=args.index_path)
-    urls = find_pages(indexer, args.terms)
-    for url in urls:
-        print(url)
-    return 0
-
-
-def build_parser() -> argparse.ArgumentParser:
+def parse_startup_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="search-tool")
     parser.add_argument(
         "-v",
@@ -103,40 +71,114 @@ def build_parser() -> argparse.ArgumentParser:
         default=str(DEFAULT_INDEX_PATH),
         help="Path to the index file (JSON).",
     )
-
-    sub = parser.add_subparsers(dest="command", required=True)
-
-    p_build = sub.add_parser("build", help="Crawl, build index, and save it.")
-    p_build.add_argument(
-        "--start-url", default=BASE_URL, help="URL to start crawling from."
+    parser.add_argument(
+        "--start-url",
+        default=BASE_URL,
+        help="URL to start crawling from (used by the 'build' command).",
     )
-    p_build.add_argument(
+    parser.add_argument(
         "--politeness-window",
         type=float,
         default=POLITENESS_WINDOW,
-        help="Seconds between successive requests.",
+        help="Seconds between successive requests (used by 'build').",
     )
-    p_build.set_defaults(func=_cmd_build)
+    return parser.parse_args(argv)
 
-    p_load = sub.add_parser("load", help="Load an existing index (validates it).")
-    p_load.set_defaults(func=_cmd_load)
 
-    p_print = sub.add_parser("print", help="Print the inverted index for a word.")
-    p_print.add_argument("term")
-    p_print.set_defaults(func=_cmd_print)
+def run_shell(
+    *,
+    index_path: Path,
+    start_url: str = BASE_URL,
+    politeness_window: float = POLITENESS_WINDOW,
+) -> int:
+    indexer: Indexer | None = None
+    index_path = Path(index_path)
 
-    p_find = sub.add_parser("find", help="Find pages containing all query terms.")
-    p_find.add_argument("terms", nargs="*")
-    p_find.set_defaults(func=_cmd_find)
+    while True:
+        try:
+            line = input("> ")
+        except EOFError:
+            print()
+            return 0
 
-    return parser
+        try:
+            parts = shlex.split(line, comments=False)
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            continue
+
+        if not parts:
+            continue
+
+        cmd = parts[0].lower()
+        args = parts[1:]
+
+        if cmd in ("exit", "quit"):
+            return 0
+
+        if cmd == "build":
+            indexer = build_index(
+                start_url=start_url,
+                index_path=index_path,
+                politeness_window=politeness_window,
+            )
+            continue
+
+        if cmd == "load":
+            if not index_path.is_file():
+                print(
+                    f"No index file at {index_path}. Run 'build' first.",
+                    file=sys.stderr,
+                )
+                continue
+            try:
+                indexer = load_index(index_path=index_path)
+            except (OSError, json.JSONDecodeError, TypeError, ValueError) as e:
+                print(f"Failed to load index: {e}", file=sys.stderr)
+                indexer = None
+            continue
+
+        if cmd == "print":
+            if indexer is None:
+                print("No index in memory. Run 'build' or 'load' first.", file=sys.stderr)
+                continue
+            if len(args) != 1:
+                print("Usage: print <word>", file=sys.stderr)
+                continue
+            term = args[0]
+            postings = indexer.get(term)
+            print(
+                json.dumps(
+                    {url: p.to_dict() for url, p in postings.items()},
+                    indent=2,
+                    sort_keys=True,
+                )
+            )
+            continue
+
+        if cmd == "find":
+            if indexer is None:
+                print("No index in memory. Run 'build' or 'load' first.", file=sys.stderr)
+                continue
+            urls = find_pages(indexer, args)
+            for url in urls:
+                print(url)
+            continue
+
+        print(f"Unknown command: {parts[0]!r}", file=sys.stderr)
+
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = build_parser()
-    args = parser.parse_args(argv)
-    configure_logging(verbose=args.verbose, quiet=args.quiet)
-    return int(args.func(args))
+    argv = sys.argv[1:] if argv is None else argv
+    ns = parse_startup_args(argv)
+    configure_logging(verbose=ns.verbose, quiet=ns.quiet)
+    return run_shell(
+        index_path=Path(ns.index_path),
+        start_url=ns.start_url,
+        politeness_window=ns.politeness_window,
+    )
 
 
 if __name__ == "__main__":

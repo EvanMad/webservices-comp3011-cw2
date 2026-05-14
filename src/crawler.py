@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
 BASE_URL = "https://quotes.toscrape.com"
-POLITENESS_WINDOW = 0  # seconds
+POLITENESS_WINDOW = 6 # seconds
 
 logger = logging.getLogger(__name__)
 

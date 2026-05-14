@@ -40,15 +40,15 @@ def test_find_pages_single_term(indexer: Indexer):
     assert find_pages(indexer, ["friends"]) == ["https://quotes.toscrape.com/"]
 
 
-def test_find_pages_phrase_match_two_terms(indexer: Indexer):
-    # "good friends" is a phrase on the home page.
+def test_find_pages_two_terms_and_anywhere(indexer: Indexer):
+    # Brief-style: both "good" and "friends" appear on the home page.
     assert find_pages(indexer, ["good", "friends"]) == ["https://quotes.toscrape.com/"]
 
 
-def test_find_pages_phrase_match_different_page(indexer: Indexer):
+def test_find_pages_two_terms_and_other_page(indexer: Indexer):
     assert find_pages(indexer, ["page", "is"]) == ["https://quotes.toscrape.com/about"]
 
 
-def test_find_pages_non_phrase_does_not_match(indexer: Indexer):
-    # Both words exist on the home page, but not consecutively.
-    assert find_pages(indexer, ["friends", "books"]) == []
+def test_find_pages_non_adjacent_terms_still_match(indexer: Indexer):
+    # Both words on the home page, not next to each other in the token stream.
+    assert find_pages(indexer, ["friends", "books"]) == ["https://quotes.toscrape.com/"]
